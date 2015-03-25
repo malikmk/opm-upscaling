@@ -39,6 +39,8 @@
 #include <opm/porsol/common/setupBoundaryConditions.hpp>
 #include <opm/porsol/common/ReservoirPropertyTracerFluid.hpp>
 
+#include <opm/core/linalg/petsc.hpp>
+
 #include <iostream>
 
 namespace Opm
@@ -232,45 +234,48 @@ namespace Opm
 	// gravity[2] = -Dune::unit::gravity;
 
 	permtensor_t upscaled_K(3, 3, (double*)0);
-	for (int pdd = 0; pdd < Dimension; ++pdd) {
-	    setupUpscalingConditions(ginterf_, bctype_, pdd, 1.0, 1.0, twodim_hack_, bcond_);
-	    if (pdd == 0) {
-		// Only on first iteration, since we do not change the
-		// structure of the system, the way the flow solver is
-		// implemented.
-		flow_solver_.init(ginterf_, res_prop_, gravity, bcond_);
-	    }
+    for (int pdd = 0; pdd < Dimension; ++pdd) {
+        setupUpscalingConditions(ginterf_, bctype_, pdd, 1.0, 1.0, twodim_hack_, bcond_);
+        if (pdd == 0) {
+            // Only on first iteration, since we do not change the
+            // structure of the system, the way the flow solver is
+            // implemented.
+            flow_solver_.init(ginterf_, res_prop_, gravity, bcond_);
+        }
 
-	    // Run pressure solver.
-            bool same_matrix = (bctype_ != Fixed) && (pdd != 0);
-	    flow_solver_.solve(fluid, sat, bcond_, src, residual_tolerance_,
-                               linsolver_verbosity_, 
-                               linsolver_type_, same_matrix,
-                               linsolver_maxit_, linsolver_prolongate_factor_,
-                               linsolver_smooth_steps_);
-            double max_mod = flow_solver_.postProcessFluxes();
-            std::cout << "Max mod = " << max_mod << std::endl;
+        // Run pressure solver.
+        bool same_matrix = (bctype_ != Fixed) && (pdd != 0);
+        flow_solver_.solve(fluid, sat, bcond_, src, residual_tolerance_,
+                linsolver_verbosity_, 
+                linsolver_type_, same_matrix,
+                linsolver_maxit_, linsolver_prolongate_factor_,
+                linsolver_smooth_steps_);
 
-	    // Compute upscaled K.
-	    double Q[Dimension] =  { 0 };
-	    switch (bctype_) {
-	    case Fixed:
-		Q[pdd] = computeAverageVelocity(flow_solver_.getSolution(), pdd, pdd);
-		break;
-	    case Linear:
-	    case Periodic:
-		for (int i = 0; i < Dimension; ++i) {
-		    Q[i] = computeAverageVelocity(flow_solver_.getSolution(), i, pdd);
-		}
-		break;
-	    default:
-		OPM_THROW(std::runtime_error, "Unknown boundary type: " << bctype_);
-	    }
-	    double delta = computeDelta(pdd);
-	    for (int i = 0; i < Dimension; ++i) {
-		upscaled_K(i, pdd) = Q[i] * delta;
-	    }
-	}
+
+
+        double max_mod = flow_solver_.postProcessFluxes();
+        std::cout << "Max mod = " << max_mod << std::endl;
+
+        // Compute upscaled K.
+        double Q[Dimension] =  { 0 };
+        switch (bctype_) {
+            case Fixed:
+                Q[pdd] = computeAverageVelocity(flow_solver_.getSolution(), pdd, pdd);
+                break;
+            case Linear:
+            case Periodic:
+                for (int i = 0; i < Dimension; ++i) {
+                    Q[i] = computeAverageVelocity(flow_solver_.getSolution(), i, pdd);
+                }
+                break;
+            default:
+                OPM_THROW(std::runtime_error, "Unknown boundary type: " << bctype_);
+        }
+        double delta = computeDelta(pdd);
+        for (int i = 0; i < Dimension; ++i) {
+            upscaled_K(i, pdd) = Q[i] * delta;
+        }
+    }
 	return upscaled_K;
     }
 

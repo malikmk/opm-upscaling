@@ -210,6 +210,9 @@ try
     */
 
    Dune::MPIHelper& mpi=Dune::MPIHelper::instance(varnum, vararg);
+
+   Opm::Petsc::Petsc handle( &varnum, &vararg, NULL, "halp" );
+
    const int mpi_rank = mpi.rank();
 #ifdef HAVE_MPI
    const int mpi_nodecount = mpi.size();
@@ -280,8 +283,8 @@ try
    */
    int argeclindex = 0;
    for (int argidx = 1; argidx < varnum; argidx += 2)  {
-       if (string(vararg[argidx]).substr(0,1) == "-")    {
-           string searchfor = string(vararg[argidx]).substr(1); // Chop off leading '-'
+       if (string(vararg[argidx]).substr(0,2) == "--")    {
+           string searchfor = string(vararg[argidx]).substr(2); // Chop off leading '-'
            /* Check if it is a match */
            if (options.count(searchfor) == 1) {
                options[searchfor] = string(vararg[argidx+1]);
@@ -289,9 +292,13 @@ try
                argeclindex = argidx + 2;
            }
            else {
-               if (isMaster) cout << "Option -" << searchfor << " unrecognized." << endl;
-               usageandexit();
+               if (isMaster) cout << "Option --" << searchfor << " unrecognized." << endl;
+               //usageandexit();
            }
+       } 
+       else if (string(vararg[argidx]).substr(0,1) == "-") { 
+           if (isMaster) cout << "Option " << vararg[ argidx ] << " unrecognized." << endl;
+           if ( string( vararg[ argidx + 1 ] ).substr( 0, 1 ) == "-" ) argidx -= 1;
        }
        else { 
            // if vararg[argidx] does not start in '-', 
